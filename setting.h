@@ -12,7 +12,7 @@
 #define MAX_NUM_EPOLL_NUM 10
 #define MAX_PROCESS 100
 #define MAX_READ_BUF_SIZE 100
-
+#define MAX_FILE_OPENED 30
 
 
 #endif /* SERVER_SETTING_H_ */

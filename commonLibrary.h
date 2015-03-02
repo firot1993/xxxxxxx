@@ -1,3 +1,5 @@
+#pragma once
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -15,12 +17,36 @@
 #include <sys/wait.h>
 #include "message/message.h"
 #include "json/json.h"
+#include <sys/sem.h>
+#include <sys/shm.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 
 using json = nlohmann::json;
 
-int newServer(const char* ip, int port,int maxReach);
+int newServer(const char* ip, int port, int maxReach);
 
-class Server{
+union semun {
+	int val;
+	semid_ds* buf;
+	unsigned short int* array;
+	seminfo* _buf;
+};
+
+void error_and_die(const char *msg) {
+	perror(msg);
+	exit(EXIT_FAILURE);
+}
+
+void pv(int sem_id, int op) {
+	struct sembuf sem_b;
+	sem_b.sem_op = op;
+	sem_b.sem_num = 0;
+	sem_b.sem_flg = SEM_UNDO;
+	semop(sem_id, &sem_b, 1);
+}
+
+class Server {
 
 private:
 	const char *ip;
@@ -29,23 +55,22 @@ private:
 
 public:
 	int sockfd = 0;
-	Server(int _maxReach =-1, int _port = -1,  const char *_ip = NULL ){
-		maxReach = (_maxReach != -1)?_maxReach:5;
-		port = (_port != -1)?_port:8080;
-		ip = (_ip != NULL)?_ip:"127.0.0.1";
+	Server(int _maxReach = -1, int _port = -1, const char *_ip = NULL) {
+		maxReach = (_maxReach != -1) ? _maxReach : 5;
+		port = (_port != -1) ? _port : 8080;
+		ip = (_ip != NULL) ? _ip : "127.0.0.1";
 
 	}
-	void start(){
+	void start() {
 		sockfd = newServer(ip, port, maxReach);
 	}
-	void stop(){
+	void stop() {
 		close(sockfd);
 	}
 };
 
-
 // create a new server; normal setting ;
-int newServer(const char* ip, int port,int maxReach){
+int newServer(const char* ip, int port, int maxReach) {
 	sockaddr_in address;
 	bzero(&address, sizeof(address));
 	address.sin_family = AF_INET;
@@ -57,18 +82,17 @@ int newServer(const char* ip, int port,int maxReach){
 	int reuse = 1;
 	setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
 
-	int ret = bind(sock, (sockaddr*)&address, sizeof(address));
+	int ret = bind(sock, (sockaddr*) &address, sizeof(address));
 	assert(ret != -1);
 
-	ret =  listen(sock, maxReach);
+	ret = listen(sock, maxReach);
 	assert(ret != -1);
 	return sock;
-
 
 }
 
 //create a new connection, common setting;
-int newClient(const char* ip, int port){
+int newClient(const char* ip, int port) {
 	sockaddr_in address;
 	bzero(&address, sizeof(address));
 	address.sin_family = AF_INET;
@@ -80,17 +104,17 @@ int newClient(const char* ip, int port){
 }
 
 //add new signal handle function
-void addsig(int sig, void(*sig_handler)(int) ){
+void addsig(int sig, void (*sig_handler)(int)) {
 	struct sigaction sa;
 	memset(&sa, '\0', sizeof(sa));
 	sa.sa_handler = sig_handler;
 //	sa.sa_flags |= SA_RESTART;
 	sigfillset(&sa.sa_mask);
-	assert( sigaction(sig, &sa, NULL) != -1);
+	assert(sigaction(sig, &sa, NULL) != -1);
 }
 
 //set nonblock
-int setnonblocking(int fd){
+int setnonblocking(int fd) {
 	int old_option = fcntl(fd, F_GETFL);
 	int new_option = old_option | O_NONBLOCK;
 	fcntl(fd, F_SETFL, new_option);
@@ -98,46 +122,45 @@ int setnonblocking(int fd){
 }
 
 //new event epoll
-void addfd( int epollfd, int fd, unsigned ets){
+void addfd(int epollfd, int fd, unsigned ets) {
 	epoll_event event;
 	event.data.fd = fd;
 	event.events = ets;
-	epoll_ctl(epollfd, EPOLL_CTL_ADD,fd, &event);
+	epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &event);
 	setnonblocking(fd);
 }
 
-void editfd(int epollfd, int fd, unsigned ets){
+void editfd(int epollfd, int fd, unsigned ets) {
 	epoll_event event;
 	event.data.fd = fd;
 	event.events = ets;
 	epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &event);
 }
 
-char* safeRead(int fd, int bufsize){
+char* safeRead(int fd, int bufsize) {
 	char *k = new char[bufsize];
-	int ret = recv(fd, k, bufsize-1 ,0);
+	int ret = recv(fd, k, bufsize - 1, 0);
 	printf("get %d bytes from connection %d \n", ret, fd);
-	if (ret < 0){
+	if (ret < 0) {
 		return NULL;
 	}
 	return k;
 }
 
-
-int safeSend(int fd, char* buf){
+int safeSend(int fd, char* buf) {
 	int ret = send(fd, buf, strlen(buf), 0);
 	return ret;
 }
 
-int sendJson(int fd, json j){
+int sendJson(int fd, json j) {
 	string s = j.dump();
-	char buf[s.length()+1];
-	sprintf(buf,"%s",s.c_str());
+	char buf[s.length() + 1];
+	sprintf(buf, "%s", s.c_str());
 	int ret = send(fd, buf, strlen(buf), 0);
 	return ret;
 }
 
 // unfinished
-bool check(string user,string password){
-	return true;
+int check(string user, string password) {
+	return 1;
 }

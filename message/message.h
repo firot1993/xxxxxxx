@@ -9,7 +9,7 @@
 #define SERVER_MESSAGE_MESSAGE_H_
 
 #include "messagetype.h"
-#include <cstdio>
+#include <stdio.h>
 #include <string>
 #include <sstream>
 
