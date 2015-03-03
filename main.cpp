@@ -6,49 +6,9 @@
  */
 
 #include "commonLibrary.h"
-#include "setting.h"
-#include "timeheap.h"
 #include "data/data.h"
-
-#include <vector>
-#include <map>
-
-using namespace std;
-
-//vector<int> process;
-
-//share memory of fileMan.
-
-struct memoryData {
-	//please set a time_heap to auto_release File;
-	File opened[MAX_FILE_OPENED];
-	bool flag[MAX_FILE_OPENED];
-	int sem_id;
-	memoryData() {
-		sem_id = semget(IPC_PRIVATE, 1, 0666);
-		semun sem_um;
-		sem_um.val = MAX_FILE_OPENED;
-		semctl(sem_id, 0, SETVAL, sem_um);
-		memset(flag, 0, sizeof(flag));
-	}
-	int getAFile(const char* filename) {
-		for (int i = 0; i < MAX_FILE_OPENED; i++)
-			if (opened[i].name == filename)
-				return i;
-		pv(sem_id, -1);
-		for (int i = 0; i < MAX_FILE_OPENED; i++)
-			if (!flag[i]) {
-				flag[i] = true;
-				opened[i].loadFile(filename);
-				return i;
-			}
-	}
-	void releaseFile(int pos) {
-		pv(sem_id, 1);
-		flag[pos] = false;
-		opened[pos].clear();
-	}
-};
+#include "user/user.h"
+#include <string>
 
 map<int, int> bindProandConn;
 
@@ -65,10 +25,10 @@ void sig_child(int signo) {
 
 void terminateConnection(client_data* user_data) {
 	close(user_data->sockfd);
-
 }
 
 void work(int connfd) {
+	User *con = NULL;
 	string user;
 	string password;
 	time_heap timeHeap(10);
@@ -76,11 +36,17 @@ void work(int connfd) {
 	epoll_event events[MAX_NUM_EPOLL_NUM];
 	addfd(epollfd, connfd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
 	char buf[100] = "welcome to connect , Input Username first:\n";
-	json *_json;
+	json js, list;
+	bool listFlag = false;
 	bool sendbuf = true;
 	bool sendJ = false;
-	bool admin = false;
-	int login = 0;
+	bool flag = false;
+	int memoryfd = shm_open(memname, O_CREAT | O_TRUNC | O_RDWR, 0666);
+	memoryData* ptr = static_cast<memoryData*>(mmap(0, size,
+	PROT_READ | PROT_WRITE, MAP_SHARED, memoryfd, 0));
+
+//	int *k = new int(3);
+//	safe_delete(k);
 	while (1) {
 		timeHeap.tick();
 		int ret = epoll_wait(epollfd, events, MAX_NUM_EPOLL_NUM, -1);
@@ -97,7 +63,8 @@ void work(int connfd) {
 				printf("messageType : %d\n", newMessage.messageType);
 				if (!ret
 						|| ((newMessage.messageType == 0
-								|| newMessage.messageType == 1) && login)) {
+								|| newMessage.messageType == 1)
+								&& con->islogin())) {
 					sprintf(buf,
 							"an error had occured, the connection will close in 2 sec \n");
 					sendbuf = true;
@@ -110,15 +77,19 @@ void work(int connfd) {
 				switch (newMessage.messageType) {
 				case LOG_IN_USER:
 					user = newMessage.source;
+					if (con != NULL) {
+						delete con;
+						con = NULL;
+					}
+					con = new User(user);
 					sprintf(buf, "Please enter your password: User %s \n",
 							user.c_str());
 					sendbuf = true;
 					break;
 				case LOG_IN_PASSWORD:
 					password = newMessage.source;
-					login = check(user, password);
-					admin = (login == 2);
-					if (!login) {
+					flag = con->check(password);
+					if (!flag) {
 						sprintf(buf, "password or username wrong \n ");
 						sendbuf = true;
 					} else {
@@ -127,14 +98,40 @@ void work(int connfd) {
 					}
 					break;
 				case GET_LIST:
-					if (login) {
+					if (con->islogin()) {
+						int fid = con->getUserMessageList(ptr);
+						js = ptr->opened[fid].get();
+						ptr->releaseFile(fid);
 						sendJ = true;
-						_json = new json();
-						(*_json)["type"] = "MessageType";
-						(*_json)["num"] = 3;
+
 					} else {
 						sprintf(buf, "you have not login \n");
 						sendbuf = true;
+					}
+					break;
+				case GET_FILE:
+					if (con->islogin()) {
+						const char* id = newMessage.source.c_str();
+						int fid = con->getUserMessageList(ptr);
+						js = json::parse(ptr->opened[fid].get());
+						ptr->releaseFile(fid);
+						vector<string> messageid = js["lists"];
+						bool findId = false;
+						for (int i = 0; i < messageid.size(); i++) {
+							if (messageid[i] == id) {
+								findId = true;
+								break;
+							}
+						}
+						if (!findId) {
+							sprintf(buf, "wrong id messageid \n");
+							sendbuf = true;
+						} else {
+							fid = con->getUserMessage(id, ptr);
+							js = json::parse(ptr->opened[fid].get());
+							ptr->releaseFile(fid);
+							sendJ = true;
+						}
 					}
 					break;
 				default:
@@ -151,7 +148,7 @@ void work(int connfd) {
 					if (ret > 0)
 						sendbuf = false;
 				} else if (sendJ) {
-					int ret = sendJson(events[i].data.fd, (*_json));
+					int ret = sendJson(events[i].data.fd, js);
 //					delete [] _json;
 //					_json = NULL;
 					sendJ = false;
@@ -185,7 +182,8 @@ int main(int argc, char **argv) {
 	}
 	void * ptr = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, memoryfd, 0);
 	new (ptr) memoryData;
-
+	static_cast<memoryData*>(ptr)->setting.loadFile("/setting.json");
+	static_cast<memoryData*>(ptr)->userList.loadFile("/Database/userList.json");
 	int epollfd = epoll_create(MAX_NUM_EPOLL_EVENTS);
 	epoll_event events[MAX_NUM_EPOLL_NUM];
 	assert(epollfd != -1);
@@ -205,16 +203,14 @@ int main(int argc, char **argv) {
 						(sockaddr*) &client_address, &client_addrlength);
 				int pid = fork();
 				if (pid == -1) {
-					//	printf("cannot create new process to handle new connection");
+					printf(
+							"cannot create new process to handle new connection");
 				} else if (pid != 0) {
-
 					bindProandConn[connfd] = pid;
 					close(connfd);
 					// debug the child process.
 					//return 0;
-					// printf("father process stop handle the connection");
 				} else {
-					//	printf("one new connection");
 					work(connfd);
 					close(connfd);
 					return 0;

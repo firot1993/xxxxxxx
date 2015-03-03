@@ -5,10 +5,13 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <assert.h>
+
 #include <stdio.h>
+#include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
 #include <errno.h>
+#include <string>
 #include <string.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -21,8 +24,23 @@
 #include <sys/shm.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include "setting.h"
+#include "timeheap.h"
 
+
+
+#include <algorithm>
+#include <vector>
+#include <map>
+
+using namespace std;
 using json = nlohmann::json;
+
+#define safe_delete(p) if(p){delete p;p=NULL;}
+
+
+
+
 
 int newServer(const char* ip, int port, int maxReach);
 
@@ -45,6 +63,9 @@ void pv(int sem_id, int op) {
 	sem_b.sem_flg = SEM_UNDO;
 	semop(sem_id, &sem_b, 1);
 }
+
+
+
 
 class Server {
 
@@ -164,3 +185,4 @@ int sendJson(int fd, json j) {
 int check(string user, string password) {
 	return 1;
 }
+

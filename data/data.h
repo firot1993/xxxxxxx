@@ -1,3 +1,4 @@
+#pragma once
 #include "../commonLibrary.h"
 #include <iostream>
 
@@ -7,7 +8,8 @@ class File {
 private:
 	int filefd = -1;
 	int sem_id;
-	json file;
+//	json file;
+	string file = "";
 public:
 	string name;
 	File() {
@@ -28,6 +30,12 @@ public:
 			reload();
 		}
 	}
+	string get(){
+		if (file == ""){
+			reload();
+		}
+		return file;
+	}
 	void reload() {
 		pv(sem_id, 1);
 		string buf = "";
@@ -37,20 +45,20 @@ public:
 			for (unsigned i = 0; i < strlen(c); i++)
 				buf += c[i];
 		}
-		file = json::parse(buf);
 		pv(sem_id, -1);
+		json tmp = json::parse(buf);
+		file = tmp.dump();
 	}
 
-	void rewrite() throw (exception) {
+	void rewrite(json j) throw (exception) {
 		pv(sem_id, 0);
-		string buf = file.dump();
+		string buf = j.dump();
 		char s[buf.length() + 1];
 		sprintf(s, "%s", buf.c_str());
 		ssize_t writeLen = 0;
 		writeLen = write(filefd, s, strlen(s));
 		if (writeLen < buf.length() - 1)
 			throw exception();
-
 	}
 
 	void clear() throw (exception) {
