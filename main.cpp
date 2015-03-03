@@ -44,7 +44,7 @@ void work(int connfd) {
 	int memoryfd = shm_open(memname, O_CREAT | O_TRUNC | O_RDWR, 0666);
 	memoryData* ptr = static_cast<memoryData*>(mmap(0, size,
 	PROT_READ | PROT_WRITE, MAP_SHARED, memoryfd, 0));
-
+	int fid = -1;
 //	int *k = new int(3);
 //	safe_delete(k);
 	while (1) {
@@ -99,7 +99,7 @@ void work(int connfd) {
 					break;
 				case GET_LIST:
 					if (con->islogin()) {
-						int fid = con->getUserMessageList(ptr);
+						fid = con->getUserMessageList(ptr);
 						js = ptr->opened[fid].get();
 						ptr->releaseFile(fid);
 						sendJ = true;
@@ -109,13 +109,13 @@ void work(int connfd) {
 						sendbuf = true;
 					}
 					break;
-				case GET_FILE:
+				case GET_FILE: {
 					if (con->islogin()) {
 						const char* id = newMessage.source.c_str();
-						int fid = con->getUserMessageList(ptr);
+						fid = con->getUserMessageList(ptr);
 						js = json::parse(ptr->opened[fid].get());
 						ptr->releaseFile(fid);
-						vector<string> messageid = js["lists"];
+						auto messageid = js["lists"];
 						bool findId = false;
 						for (int i = 0; i < messageid.size(); i++) {
 							if (messageid[i] == id) {
@@ -134,6 +134,28 @@ void work(int connfd) {
 						}
 					}
 					break;
+				}
+				case SEND_FILE: {
+					fid = con->getUserMessageList(ptr);
+					json js = json::parse(ptr->opened[fid].get());
+					auto lists =js["lists"];
+					vector<string> a;
+					for (int i= 0; i <lists.size(); i++)
+						a.push_back(lists[i]);
+					json mes = json::parse(newMessage.source);
+					string mid = generateMid(a);
+					lists.push_back(mid);
+					json now(lists);
+					ptr->opened[fid].rewrite(now);
+					ptr->releaseFile(fid);
+
+					string s = json::parse(ptr->setting.get())["location"];
+					string location = s + '/' + user + '/' + mid + ".json";
+					fid = ptr->getAFile(location.c_str());
+					ptr->opened[fid].rewrite(mes);
+					ptr->releaseFile(fid);
+					break;
+				}
 				default:
 					break;
 				}

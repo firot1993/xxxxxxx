@@ -186,3 +186,8 @@ int check(string user, string password) {
 	return 1;
 }
 
+string generateMid(vector<string> &lists){
+	string mid;
+	return mid;
+}
+

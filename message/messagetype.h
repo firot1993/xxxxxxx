@@ -15,5 +15,6 @@
 
 #define GET_LIST 2
 #define GET_FILE 3
+#define SEND_FILE 4
 
 #endif /* SERVER_MESSAGE_MESSAGETYPE_H_ */
