@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 #include <assert.h>
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -20,10 +21,12 @@
 #include <sys/wait.h>
 #include "message/message.h"
 #include "json/json.h"
+#include "log/log.h"
 #include <sys/sem.h>
 #include <sys/shm.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <stdexcept>
 #include "setting.h"
 #include "timeheap.h"
 
@@ -161,7 +164,7 @@ void editfd(int epollfd, int fd, unsigned ets) {
 char* safeRead(int fd, int bufsize) {
 	char *k = new char[bufsize];
 	int ret = recv(fd, k, bufsize - 1, 0);
-	printf("get %d bytes from connection %d \n", ret, fd);
+//	printf("get %d bytes from connection %d \n", ret, fd);
 	if (ret < 0) {
 		return NULL;
 	}
@@ -189,5 +192,37 @@ int check(string user, string password) {
 string generateMid(vector<string> &lists){
 	string mid;
 	return mid;
+}
+
+#define MAX_PATH  1000
+//const std::string strCfgName = "logger_import_db.conf" ;
+
+bool fGetCfgFileName(std::string& paraStr_CfgFileName)
+{
+    paraStr_CfgFileName.clear() ;
+    char szWorkDir[MAX_PATH] = {0} ;
+    char szCfgFileNameTemp[MAX_PATH] = {0} ;
+    if(!getcwd(szWorkDir, 260))
+    {
+        return false ;
+    }
+
+    paraStr_CfgFileName = szWorkDir ;
+//    paraStr_CfgFileName.append("/") ;
+//    paraStr_CfgFileName.append(strCfgName) ;
+
+    return true ;
+}
+
+json safe_parse(string e){
+	json tmp;
+	try{
+		tmp = json::parse(e);
+		return tmp;
+	}catch(const std::invalid_argument& xx){
+//		printf("%s %d\n",xx.what(),time(NULL));
+		LogPrinter::output(xx.what());
+		return tmp;
+	}
 }
 

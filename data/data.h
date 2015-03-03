@@ -4,6 +4,15 @@
 
 using std::exception;
 
+class FileException: public exception {
+public:
+	string s;
+	FileException() {
+	}
+	FileException(string s) :
+			s(s) {
+	}
+};
 class File {
 private:
 	int filefd = -1;
@@ -18,20 +27,19 @@ public:
 		sem_un.val = 0;
 		semctl(sem_id, 0, SETVAL, sem_un);
 	}
-	void loadFile(const char *filename) throw (exception) {
+	void loadFile(const char *filename) throw (FileException) {
 		pv(sem_id, 0);
 		if (filefd != -1)
 			close(filefd);
 		name = filename;
 		filefd = open(filename, O_RDWR);
 		if (filefd == -1) {
-			throw exception();
-		} else {
-			reload();
+			filefd = open(filename, O_RDWR | O_CREAT);
 		}
+		reload();
 	}
-	string get(){
-		if (file == ""){
+	string get() {
+		if (file == "") {
 			reload();
 		}
 		return file;
@@ -39,18 +47,19 @@ public:
 	void reload() {
 		pv(sem_id, 1);
 		string buf = "";
-		char *c;
+		char c[101];
 		ssize_t readLen = 0;
 		while ((readLen = read(filefd, c, 100)) != 0) {
-			for (unsigned i = 0; i < strlen(c); i++)
+			for (unsigned i = 0; i < readLen; i++)
 				buf += c[i];
 		}
 		pv(sem_id, -1);
-		json tmp = json::parse(buf);
+		json tmp = safe_parse(buf);
 		file = tmp.dump();
+
 	}
 
-	void rewrite(json j) throw (exception) {
+	void rewrite(json j) throw (FileException) {
 		pv(sem_id, 0);
 		string buf = j.dump();
 		char s[buf.length() + 1];
@@ -58,10 +67,10 @@ public:
 		ssize_t writeLen = 0;
 		writeLen = write(filefd, s, strlen(s));
 		if (writeLen < buf.length() - 1)
-			throw exception();
+			throw FileException("Write file exception");
 	}
 
-	void clear() throw (exception) {
+	void clear() throw (FileException) {
 		pv(sem_id, 0);
 		close(filefd);
 		filefd = -1;

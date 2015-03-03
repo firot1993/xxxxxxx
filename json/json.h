@@ -45,6 +45,7 @@ iterators allow a ReversibleContainer to be iterated over in reverse.
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <stdexcept>
 
 /*!
 @brief namespace for Niels Lohmann

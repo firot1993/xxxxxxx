@@ -22,7 +22,9 @@ struct memoryData {
 		for (int i = 0; i < MAX_FILE_OPENED; i++)
 			if (opened[i].name == filename)
 				return i;
+		LogPrinter::output("waiting for semphore..in %s",__func__);
 		pv(sem_id, -1);
+		LogPrinter::output("get the semphore in %s..", __func__);
 		for (int i = 0; i < MAX_FILE_OPENED; i++)
 			if (!flag[i]) {
 				flag[i] = true;

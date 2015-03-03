@@ -27,7 +27,7 @@ void terminateConnection(client_data* user_data) {
 	close(user_data->sockfd);
 }
 
-void work(int connfd) {
+void work(int connfd, memoryData* ptr) {
 	User *con = NULL;
 	string user;
 	string password;
@@ -35,15 +35,15 @@ void work(int connfd) {
 	int epollfd = epoll_create(MAX_NUM_EPOLL_EVENTS);
 	epoll_event events[MAX_NUM_EPOLL_NUM];
 	addfd(epollfd, connfd, EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
-	char buf[100] = "welcome to connect , Input Username first:\n";
+	char buf[100] = "welcome to connect , Input Username first:";
 	json js, list;
 	bool listFlag = false;
 	bool sendbuf = true;
 	bool sendJ = false;
 	bool flag = false;
-	int memoryfd = shm_open(memname, O_CREAT | O_TRUNC | O_RDWR, 0666);
-	memoryData* ptr = static_cast<memoryData*>(mmap(0, size,
-	PROT_READ | PROT_WRITE, MAP_SHARED, memoryfd, 0));
+//	int memoryfd = shm_open(memname, O_RDWR, 0666);
+//	memoryData* ptr = static_cast<memoryData*>(mmap(0, size,
+//	PROT_READ | PROT_WRITE, MAP_SHARED, memoryfd, 0));
 	int fid = -1;
 //	int *k = new int(3);
 //	safe_delete(k);
@@ -52,7 +52,7 @@ void work(int connfd) {
 		int ret = epoll_wait(epollfd, events, MAX_NUM_EPOLL_NUM, -1);
 		if (ret < 0) {
 			//more , remeber the hostname and print the connection .
-			printf("epoll failure in connfd %d \n", connfd);
+			LogPrinter::output("epoll failure in connfd %d", connfd);
 			break;
 		}
 		for (int i = 0; i < ret; i++) {
@@ -60,13 +60,13 @@ void work(int connfd) {
 				char *tmp = safeRead(events[i].data.fd, MAX_READ_BUF_SIZE);
 				Message newMessage(tmp);
 				int ret = newMessage.extract();
-				printf("messageType : %d\n", newMessage.messageType);
+				LogPrinter::output("messageType : %d", newMessage.messageType);
 				if (!ret
 						|| ((newMessage.messageType == 0
 								|| newMessage.messageType == 1)
-								&& con->islogin())) {
+								&& con && con->islogin())) {
 					sprintf(buf,
-							"an error had occured, the connection will close in 2 sec \n");
+							"an error had occured, the connection will close in 2 sec ");
 					sendbuf = true;
 					heap_timer *timer = new heap_timer(2);
 					timer->cb_func = terminateConnection;
@@ -74,6 +74,7 @@ void work(int connfd) {
 					timer->user_data->sockfd = connfd;
 					timeHeap.add_timer(timer);
 				}
+
 				switch (newMessage.messageType) {
 				case LOG_IN_USER:
 					user = newMessage.source;
@@ -82,7 +83,7 @@ void work(int connfd) {
 						con = NULL;
 					}
 					con = new User(user);
-					sprintf(buf, "Please enter your password: User %s \n",
+					sprintf(buf, "Please enter your password: User %s ",
 							user.c_str());
 					sendbuf = true;
 					break;
@@ -90,22 +91,23 @@ void work(int connfd) {
 					password = newMessage.source;
 					flag = con->check(password);
 					if (!flag) {
-						sprintf(buf, "password or username wrong \n ");
+						sprintf(buf, "password or username wrong  ");
 						sendbuf = true;
 					} else {
-						sprintf(buf, "welcome back , %s \n", user.c_str());
+						sprintf(buf, "welcome back , %s ", user.c_str());
 						sendbuf = true;
 					}
 					break;
 				case GET_LIST:
-					if (con->islogin()) {
+
+					if (con && con->islogin()) {
 						fid = con->getUserMessageList(ptr);
 						js = ptr->opened[fid].get();
 						ptr->releaseFile(fid);
 						sendJ = true;
 
 					} else {
-						sprintf(buf, "you have not login \n");
+						sprintf(buf, "you have not login ");
 						sendbuf = true;
 					}
 					break;
@@ -124,7 +126,7 @@ void work(int connfd) {
 							}
 						}
 						if (!findId) {
-							sprintf(buf, "wrong id messageid \n");
+							sprintf(buf, "wrong id messageid ");
 							sendbuf = true;
 						} else {
 							fid = con->getUserMessage(id, ptr);
@@ -138,9 +140,9 @@ void work(int connfd) {
 				case SEND_FILE: {
 					fid = con->getUserMessageList(ptr);
 					json js = json::parse(ptr->opened[fid].get());
-					auto lists =js["lists"];
+					auto lists = js["lists"];
 					vector<string> a;
-					for (int i= 0; i <lists.size(); i++)
+					for (int i = 0; i < lists.size(); i++)
 						a.push_back(lists[i]);
 					json mes = json::parse(newMessage.source);
 					string mid = generateMid(a);
@@ -159,7 +161,7 @@ void work(int connfd) {
 				default:
 					break;
 				}
-				printf("the buf is :%s\n", buf);
+				LogPrinter::output("the buf is :%s", buf);
 			} else if (events[i].events & EPOLLRDHUP) {
 
 			}
@@ -184,8 +186,16 @@ void work(int connfd) {
 
 int main(int argc, char **argv) {
 	// parse parameter
+	string path;
+//	int xx=3;
+//	char xxx='k';
+//	char *xxxx ="1234";
+//	LogPrinter::output("%d %c %s",xx,xxx,xxxx);
+
+	bool fg = fGetCfgFileName(path);
+	LogPrinter::output(path);
 	addsig(SIGCHLD, sig_child);
-	printf("good\n");
+
 	// using default
 	Server newServer;
 	if (argc > 1) {
@@ -204,16 +214,23 @@ int main(int argc, char **argv) {
 	}
 	void * ptr = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, memoryfd, 0);
 	new (ptr) memoryData;
-	static_cast<memoryData*>(ptr)->setting.loadFile("/setting.json");
-	static_cast<memoryData*>(ptr)->userList.loadFile("/Database/userList.json");
+	memoryData *pt = static_cast<memoryData*>(ptr);
+	try {
+		pt->setting.loadFile("./setting.json");
+	} catch (FileException e) {
+		LogPrinter::output(e.s);
+	}
+	static_cast<memoryData*>(ptr)->userList.loadFile(
+			"./Database/userList.json");
 	int epollfd = epoll_create(MAX_NUM_EPOLL_EVENTS);
 	epoll_event events[MAX_NUM_EPOLL_NUM];
 	assert(epollfd != -1);
 	addfd(epollfd, newServer.sockfd, EPOLLIN | EPOLLET);
+	LogPrinter::output("Server start succeed!Waiting for Connection");
 	while (1) {
 		int ret = epoll_wait(epollfd, events, MAX_NUM_EPOLL_NUM, -1);
 		if (ret < 0) {
-			printf("epoll failure\n");
+			LogPrinter::output("epoll failure");
 			break;
 		}
 		for (int i = 0; i < ret; i++) {
@@ -225,15 +242,15 @@ int main(int argc, char **argv) {
 						(sockaddr*) &client_address, &client_addrlength);
 				int pid = fork();
 				if (pid == -1) {
-					printf(
+					LogPrinter::output(
 							"cannot create new process to handle new connection");
 				} else if (pid != 0) {
 					bindProandConn[connfd] = pid;
 					close(connfd);
 					// debug the child process.
-					//return 0;
+					return 0;
 				} else {
-					work(connfd);
+					work(connfd, pt);
 					close(connfd);
 					return 0;
 				}

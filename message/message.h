@@ -24,16 +24,16 @@ public:
 	}
 	// split the source and the headerType.
 	bool extract(){
-		printf("extract begin\n");
+//		printf("extract begin\n");
 		stringstream buf;
 		buf << source;
 		char Type;
 		buf >> Type;
 		messageType = Type - 'a';
 		buf >> source;
-		printf("MessageType: %d  ",messageType);
-		printf("MessageString: %s\n",source.c_str());
-		printf("extract finished\n");
+//		printf("MessageType: %d  ",messageType);
+//		printf("MessageString: %s\n",source.c_str());
+//		printf("extract finished\n");
 		if (messageType < 0) return false;
 		return true;
 	}
