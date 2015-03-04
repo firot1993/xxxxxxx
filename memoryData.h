@@ -32,15 +32,11 @@ struct memoryData {
 			if (!flag[i]) {
 				flag[i] = true;
 				try {
-					opened[i].loadFile(filename);
+					opened[i].loadFile(filename, false, createnew);
 					LogPrinter::outputD("finish load %s, fid = %d", filename,
 							i);
 					return i;
 				} catch (FileException xx) {
-					if (createnew){
-						opened[i].createFile(filename);
-						return i;
-					}
 					LogPrinter::outputD(xx.s);
 					return -1;
 				}
@@ -48,8 +44,12 @@ struct memoryData {
 
 	}
 	void releaseFile(int pos) {
-		opened[pos].clear();
-		flag[pos] = false;
-		pv(sem_id, 1);
+		try {
+			opened[pos].clear();
+			flag[pos] = false;
+			pv(sem_id, 1);
+		} catch (FileException e) {
+			LogPrinter::outputD(e.s);
+		}
 	}
 };

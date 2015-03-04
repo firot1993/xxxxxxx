@@ -201,7 +201,7 @@ bool fGetCfgFileName(std::string& paraStr_CfgFileName)
 {
     paraStr_CfgFileName.clear() ;
     char szWorkDir[MAX_PATH] = {0} ;
-    char szCfgFileNameTemp[MAX_PATH] = {0} ;
+//    char szCfgFileNameTemp[MAX_PATH] = {0} ;
     if(!getcwd(szWorkDir, 260))
     {
         return false ;
@@ -220,7 +220,7 @@ bool safe_parse(string e, json&t){
 		return true;
 	}catch(const std::invalid_argument& xx){
 //		printf("%s %d\n",xx.what(),time(NULL));
-		LogPrinter::outputD("%s in %s",xx.what(),__func__);
+		LogPrinter::outputD("%s cannot parse ,error: %s in %s",e.c_str(),xx.what(),__func__);
 		return false;
 	}
 }

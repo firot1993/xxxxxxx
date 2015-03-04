@@ -34,13 +34,16 @@ public:
 		sem_un.val = 0;
 		semctl(sem_id, 0, SETVAL, sem_un);
 	}
-	void createFile(const char *filename) throw (FileException){
-		filefd = open(filename, O_RDWR | O_CREAT);
-		if (filefd == -1){
-			throw FileException("can not create file");
-		}
-	}
-	void loadFile(const char *filename) throw (FileException) {
+
+//	void createFile(const char *filename) throw (FileException){
+//		filefd = open(filename, O_RDWR | O_CREAT);
+//		if (filefd == -1){
+//			throw FileException("can not create file");
+//		}
+//	}
+
+	void loadFile(const char *filename, bool readonly = false, bool createnew =
+			false) throw (FileException) {
 		LogPrinter::outputD("start load %s ", filename);
 		LogPrinter::outputD("waiting semphore to be zero in %s", __func__);
 		pv(sem_id, 0);
@@ -48,9 +51,16 @@ public:
 		if (filefd != -1)
 			close(filefd);
 		name = filename;
+		int flag;
+//		if (!readonly) flag = O_RDWR; else flag = O_RDONLY;
+//		if (createnew) flag |= O_CREAT;
 		filefd = open(filename, O_RDWR);
-		if (filefd == -1){
-			throw FileException("no such file");
+		if (filefd == -1 && createnew)
+			filefd = open(filename, O_RDWR | O_CREAT);
+
+		if (filefd == -1) {
+			LogPrinter::outputD("error cuz halt in %s", __func__);
+			throw FileException("no such file or can not create new");
 		}
 		reload();
 		LogPrinter::outputD("the load file is %s", file.c_str());
@@ -100,6 +110,10 @@ public:
 	}
 
 	void clear() throw (FileException) {
+		int val = semctl(sem_id, 0, GETVAL);
+		if (val != 0) {
+			throw FileException("Can not close it");
+		}
 		pv(sem_id, 0);
 		close(filefd);
 		filefd = -1;

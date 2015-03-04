@@ -62,7 +62,7 @@ public:
 		LogPrinter::outputD("the location is %s", a.c_str());
 		string location = a + '/' + username + "/messageList.json";
 		LogPrinter::outputD("Trying open %s", location.c_str());
-		return ptr->getAFile(location.c_str());
+		return ptr->getAFile(location.c_str(),true);
 	}
 	int getUserMessage(const char* UMid, void *p) {
 

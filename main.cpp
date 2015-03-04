@@ -272,19 +272,14 @@ int main(int argc, char **argv) {
 	new (ptr) memoryData;
 	memoryData *pt = static_cast<memoryData*>(ptr);
 	try {
-		pt->setting.loadFile("./setting.json");
+		pt->setting.loadFile("./setting.json",true,true);
 	} catch (FileException e) {
 		LogPrinter::outputD(e.s);
 	}
 	try {
-		pt->userList.loadFile("./Database/userList.json");
+		pt->userList.loadFile("./Database/userList.json",false,true);
 	} catch (FileException e) {
 		LogPrinter::outputD(e.s);
-		try {
-			pt->userList.createFile("./Database/userList.json");
-		} catch (FileException e) {
-			LogPrinter::outputD(e.s);
-		}
 	}
 	int epollfd = epoll_create(MAX_NUM_EPOLL_EVENTS);
 	epoll_event events[MAX_NUM_EPOLL_NUM];
