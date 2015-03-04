@@ -63,8 +63,8 @@ void work(int connfd, memoryData* ptr) {
 				LogPrinter::output("messageType : %d", newMessage.messageType);
 				if (!ret
 						|| ((newMessage.messageType == 0
-								|| newMessage.messageType == 1)
-								&& con && con->islogin())) {
+								|| newMessage.messageType == 1) && con
+								&& con->islogin())) {
 					sprintf(buf,
 							"an error had occured, the connection will close in 2 sec ");
 					sendbuf = true;
@@ -77,6 +77,7 @@ void work(int connfd, memoryData* ptr) {
 
 				switch (newMessage.messageType) {
 				case LOG_IN_USER:
+					LogPrinter::outputD("------------LOG_IN_U--------------");
 					user = newMessage.source;
 					if (con != NULL) {
 						delete con;
@@ -88,6 +89,7 @@ void work(int connfd, memoryData* ptr) {
 					sendbuf = true;
 					break;
 				case LOG_IN_PASSWORD:
+					LogPrinter::outputD("------------LOG_IN_P--------------");
 					password = newMessage.source;
 					flag = con->check(password);
 					if (!flag) {
@@ -96,30 +98,46 @@ void work(int connfd, memoryData* ptr) {
 					} else {
 						sprintf(buf, "welcome back , %s ", user.c_str());
 						sendbuf = true;
+						con->createFolder(ptr);
 					}
 					break;
-				case GET_LIST:
-
+				case GET_LIST: {
+					LogPrinter::outputD("------------GET_LIST--------------");
 					if (con && con->islogin()) {
 						fid = con->getUserMessageList(ptr);
-						js = ptr->opened[fid].get();
+						bool ret = safe_parse(ptr->opened[fid].get(), js);
 						ptr->releaseFile(fid);
-						sendJ = true;
-
+						sendJ = ret;
+						if (!ret) {
+							sendbuf = true;
+							sprintf(buf, "no new message ");
+						}
 					} else {
 						sprintf(buf, "you have not login ");
 						sendbuf = true;
 					}
 					break;
+				}
 				case GET_FILE: {
+					LogPrinter::outputD("------------GET_FILE--------------");
 					if (con->islogin()) {
 						const char* id = newMessage.source.c_str();
 						fid = con->getUserMessageList(ptr);
-						js = json::parse(ptr->opened[fid].get());
-						ptr->releaseFile(fid);
+						if (fid == -1) {
+							sendbuf = true;
+							sprintf(buf, "can not get the list");
+							break;
+						}
+						bool ret = safe_parse(ptr->opened[fid].get(), js);
+						if (!ret) {
+							sendbuf = true;
+							sprintf(buf, "no new message");
+							ptr->releaseFile(fid);
+							break;
+						}
 						auto messageid = js["lists"];
 						bool findId = false;
-						for (int i = 0; i < messageid.size(); i++) {
+						for (unsigned i = 0; i < messageid.size(); i++) {
 							if (messageid[i] == id) {
 								findId = true;
 								break;
@@ -128,32 +146,69 @@ void work(int connfd, memoryData* ptr) {
 						if (!findId) {
 							sprintf(buf, "wrong id messageid ");
 							sendbuf = true;
-						} else {
-							fid = con->getUserMessage(id, ptr);
-							js = json::parse(ptr->opened[fid].get());
 							ptr->releaseFile(fid);
-							sendJ = true;
+							break;
+						} else {
+							int fid2 = con->getUserMessage(id, ptr);
+							if (fid2 == -1) {
+								sprintf(buf, "can not load message");
+								sendbuf = true;
+								json tmp;
+								ret = safe_parse(ptr->opened[fid].get(), tmp);
+								json g = tmp;
+								if (ret) {
+									g["lists"].clear();
+									for (unsigned i = 0;
+											i < tmp["lists"].size(); i++) {
+										if (tmp["lists"][i] != id) {
+											g["lists"].push_back(
+													tmp["lists"][i]);
+										}
+									}
+									ptr->opened[fid].rewrite(g);
+								}
+								ptr->releaseFile(fid);
+								break;
+							}
+							ret = safe_parse(ptr->opened[fid].get(), js);
+							if (ret) {
+								ptr->releaseFile(fid);
+								sendJ = true;
+							} else {
+								sendbuf = true;
+								sprintf(buf, "can not load it");
+							}
 						}
+					} else {
+						sendbuf = true;
+						sprintf(buf, "no new message");
 					}
+
 					break;
 				}
 				case SEND_FILE: {
+					LogPrinter::outputD("------------SEND_FILE--------------");
 					fid = con->getUserMessageList(ptr);
-					json js = json::parse(ptr->opened[fid].get());
-					auto lists = js["lists"];
+					json js, mes;
+					bool ret;
+					ret = safe_parse(ptr->opened[fid].get(), js);
+//					auto lists = js["lists"];
 					vector<string> a;
-					for (int i = 0; i < lists.size(); i++)
-						a.push_back(lists[i]);
-					json mes = json::parse(newMessage.source);
+					for (unsigned i = 0; i < js["lists"].size(); i++)
+						a.push_back(js["lists"][i]);
+
+					ret = safe_parse(newMessage.source, mes);
 					string mid = generateMid(a);
-					lists.push_back(mid);
-					json now(lists);
-					ptr->opened[fid].rewrite(now);
+					js["lists"].push_back(mid);
+//					json now(lists);
+					ptr->opened[fid].rewrite(js);
 					ptr->releaseFile(fid);
 
-					string s = json::parse(ptr->setting.get())["location"];
+					json tmp;
+					ret = safe_parse(ptr->setting.get(), tmp);
+					string s = tmp["location"];
 					string location = s + '/' + user + '/' + mid + ".json";
-					fid = ptr->getAFile(location.c_str());
+					fid = ptr->getAFile(location.c_str(), true);
 					ptr->opened[fid].rewrite(mes);
 					ptr->releaseFile(fid);
 					break;
@@ -161,7 +216,8 @@ void work(int connfd, memoryData* ptr) {
 				default:
 					break;
 				}
-				LogPrinter::output("the buf is :%s", buf);
+				if (sendbuf)
+					LogPrinter::output("the buf is :%s", buf);
 			} else if (events[i].events & EPOLLRDHUP) {
 
 			}
@@ -218,10 +274,18 @@ int main(int argc, char **argv) {
 	try {
 		pt->setting.loadFile("./setting.json");
 	} catch (FileException e) {
-		LogPrinter::output(e.s);
+		LogPrinter::outputD(e.s);
 	}
-	static_cast<memoryData*>(ptr)->userList.loadFile(
-			"./Database/userList.json");
+	try {
+		pt->userList.loadFile("./Database/userList.json");
+	} catch (FileException e) {
+		LogPrinter::outputD(e.s);
+		try {
+			pt->userList.createFile("./Database/userList.json");
+		} catch (FileException e) {
+			LogPrinter::outputD(e.s);
+		}
+	}
 	int epollfd = epoll_create(MAX_NUM_EPOLL_EVENTS);
 	epoll_event events[MAX_NUM_EPOLL_NUM];
 	assert(epollfd != -1);

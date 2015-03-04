@@ -18,19 +18,34 @@ struct memoryData {
 		semctl(sem_id, 0, SETVAL, sem_um);
 		memset(flag, 0, sizeof(flag));
 	}
-	int getAFile(const char* filename) {
+	int getAFile(const char* filename, bool createnew = false) {
+		LogPrinter::outputD("start load %s", filename);
 		for (int i = 0; i < MAX_FILE_OPENED; i++)
-			if (opened[i].name == filename)
+			if (opened[i].name == filename && flag[i]) {
+				LogPrinter::outputD("finish load %s, fid = %d", filename, i);
 				return i;
-		LogPrinter::output("waiting for semphore..in %s",__func__);
+			}
+		LogPrinter::outputD("waiting for semphore..in %s", __func__);
 		pv(sem_id, -1);
-		LogPrinter::output("get the semphore in %s..", __func__);
+		LogPrinter::outputD("get the semphore in %s..", __func__);
 		for (int i = 0; i < MAX_FILE_OPENED; i++)
 			if (!flag[i]) {
 				flag[i] = true;
-				opened[i].loadFile(filename);
-				return i;
+				try {
+					opened[i].loadFile(filename);
+					LogPrinter::outputD("finish load %s, fid = %d", filename,
+							i);
+					return i;
+				} catch (FileException xx) {
+					if (createnew){
+						opened[i].createFile(filename);
+						return i;
+					}
+					LogPrinter::outputD(xx.s);
+					return -1;
+				}
 			}
+
 	}
 	void releaseFile(int pos) {
 		opened[pos].clear();

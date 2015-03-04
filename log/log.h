@@ -40,22 +40,25 @@ public:
 	}
 	static void outputD(char *s) {
 #ifdef DEBUG
-			output(s);
+		cout << "[DEBUG]";
+		output(s);
 #endif
 	}
 	static void outputD(string s) {
 #ifdef DEBUG
-			output(s);
+		cout << "[DEBUG]";
+		output(s);
 #endif
 	}
 	static void outputD(const char* format, ...) {
 #ifdef DEBUG
-			printPre();
-			va_list va;
-			va_start(va, format);
-			vprintf(format, va);
-			printf("\n");
-			va_end(va);
+		cout << "[DEBUG]";
+		printPre();
+		va_list va;
+		va_start(va, format);
+		vprintf(format, va);
+		printf("\n");
+		va_end(va);
 #endif
 	}
 };

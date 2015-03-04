@@ -190,7 +190,7 @@ int check(string user, string password) {
 }
 
 string generateMid(vector<string> &lists){
-	string mid;
+	string mid = "123";
 	return mid;
 }
 
@@ -214,15 +214,14 @@ bool fGetCfgFileName(std::string& paraStr_CfgFileName)
     return true ;
 }
 
-json safe_parse(string e){
-	json tmp;
+bool safe_parse(string e, json&t){
 	try{
-		tmp = json::parse(e);
-		return tmp;
+		t = json::parse(e);
+		return true;
 	}catch(const std::invalid_argument& xx){
 //		printf("%s %d\n",xx.what(),time(NULL));
-		LogPrinter::output(xx.what());
-		return tmp;
+		LogPrinter::outputD("%s in %s",xx.what(),__func__);
+		return false;
 	}
 }
 

@@ -33,7 +33,21 @@ public:
 	}
 	bool check(string password) {
 		setlogin(1);
+
 		return true; // unfinished;
+	}
+	void createFolder(memoryData *p) {
+		LogPrinter::outputD("ready for creating the folder for %s", username.c_str());
+		json k;
+		bool f = safe_parse(p->setting.get(),k);
+		string locationhead = k["location"];
+		string location = locationhead + '/' + username;
+		LogPrinter::outputD("the path name is %s", username.c_str());
+		if (access(location.c_str(), 6)) {
+			string order = "mkdir " + location;
+			LogPrinter::outputD("the order name is %s", order.c_str());
+			system(order.c_str());
+		}
 	}
 	string getUsername() {
 		return username;
@@ -50,7 +64,7 @@ public:
 		LogPrinter::outputD("Trying open %s", location.c_str());
 		return ptr->getAFile(location.c_str());
 	}
-	json getUserMessage(const char* UMid, void *p) {
+	int getUserMessage(const char* UMid, void *p) {
 
 	}
 };
