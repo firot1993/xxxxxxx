@@ -267,7 +267,7 @@ int main(int argc, char **argv) {
 	addsig(SIGPIPE, SIG_IGN);
 
 	// using default
-	Server newServer;
+	Server newServer(1000);
 	if (argc > 1) {
 
 	} else {
@@ -291,6 +291,7 @@ int main(int argc, char **argv) {
 		ret = safe_parse(pt->setting.get(), tmp);
 		if (ret) {
 			int tt = tmp["maxconnection"];
+			LogPrinter::outputD("maxconnection: %d",tt);
 			connection = new connection_data[tt];
 		}
 	} catch (FileException e) {
@@ -368,7 +369,7 @@ int main(int argc, char **argv) {
 						}
 						case SIGINT:
 						case SIGTERM:
-							LogPrinter::output("Begin to clear connection");
+							LogPrinter::output("Begin cleaning connection");
 							if (con_count == 0) {
 								running = false;
 								break;
@@ -378,6 +379,7 @@ int main(int argc, char **argv) {
 								kill(pid, SIGTERM);
 							}
 							running = false;
+							LogPrinter::output("finished cleaning");
 							break;
 						default:
 							break;
@@ -388,7 +390,7 @@ int main(int argc, char **argv) {
 		}
 
 	}
-	LogPrinter::outputD("normal exists");
+	LogPrinter::outputD("Normal exists; release the semphore");
 	newServer.stop();
 	for (int i = 0; i < MAX_FILE_OPENED; i++) {
 		pt->opened[i].release();
