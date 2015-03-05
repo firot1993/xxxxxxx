@@ -29,7 +29,7 @@ private:
 public:
 	string name;
 	File() {
-		LogPrinter::output("-----------%s---------",__func__);
+		LogPrinter::output("-----------%s---------", __func__);
 		sem_id = semget(IPC_PRIVATE, 1, 0666);
 		if (sem_id == -1)
 			LogPrinter::outputD("errno %d", errno);
@@ -111,6 +111,8 @@ public:
 		writeLen = write(filefd, s, strlen(s));
 		if (writeLen < buf.length() - 1)
 			throw FileException("Write file exception");
+		else
+			reload();
 	}
 
 	void clear() throw (FileException) {
@@ -129,7 +131,7 @@ public:
 	void release() {
 		semun sem_un;
 		semctl(sem_id, 0, IPC_RMID, sem_un);
-		LogPrinter::outputD("release semid %d",sem_id);
+		LogPrinter::outputD("release semid %d", sem_id);
 	}
 	~File() {
 		if (filefd != -1)

@@ -29,8 +29,7 @@
 #include <stdexcept>
 #include "setting.h"
 #include "timeheap.h"
-
-
+#include <sqlite.h>
 
 #include <algorithm>
 #include <vector>
@@ -41,9 +40,28 @@ using json = nlohmann::json;
 
 #define safe_delete(p) if(p){delete p;p=NULL;}
 
+//splice string s by char k
+vector<string> spliceS(string s, char k) {
+	vector<string> aa;
+	string tmp = "";
+	for (int i = 0; i < s.length(); i++) {
+		if (s[i] != k)
+			tmp += s[i];
+		else {
+			aa.push_back(tmp);
+			tmp = "";
+		}
+	}
 
+	return aa;
+}
 
-
+bool invaildusername(string s) {
+	return false;
+}
+bool invaildpassword(string s) {
+	return false;
+}
 
 int newServer(const char* ip, int port, int maxReach);
 
@@ -67,9 +85,6 @@ void pv(int sem_id, int op) {
 	sem_b.sem_flg = SEM_UNDO;
 	semop(sem_id, &sem_b, 1);
 }
-
-
-
 
 class Server {
 
@@ -190,7 +205,7 @@ int check(string user, string password) {
 	return 1;
 }
 
-string generateMid(vector<string> &lists){
+string generateMid(vector<string> &lists) {
 	string mid = "123";
 	return mid;
 }
@@ -198,30 +213,29 @@ string generateMid(vector<string> &lists){
 #define MAX_PATH  1000
 //const std::string strCfgName = "logger_import_db.conf" ;
 
-bool fGetCfgFileName(std::string& paraStr_CfgFileName)
-{
-    paraStr_CfgFileName.clear() ;
-    char szWorkDir[MAX_PATH] = {0} ;
+bool fGetCfgFileName(std::string& paraStr_CfgFileName) {
+	paraStr_CfgFileName.clear();
+	char szWorkDir[MAX_PATH] = { 0 };
 //    char szCfgFileNameTemp[MAX_PATH] = {0} ;
-    if(!getcwd(szWorkDir, 260))
-    {
-        return false ;
-    }
+	if (!getcwd(szWorkDir, 260)) {
+		return false;
+	}
 
-    paraStr_CfgFileName = szWorkDir ;
+	paraStr_CfgFileName = szWorkDir;
 //    paraStr_CfgFileName.append("/") ;
 //    paraStr_CfgFileName.append(strCfgName) ;
 
-    return true ;
+	return true;
 }
 
-bool safe_parse(string e, json&t){
-	try{
+bool safe_parse(string e, json&t) {
+	try {
 		t = json::parse(e);
 		return true;
-	}catch(const std::invalid_argument& xx){
+	} catch (const std::invalid_argument& xx) {
 //		printf("%s %d\n",xx.what(),time(NULL));
-		LogPrinter::outputD("%s cannot parse ,error: %s in %s",e.c_str(),xx.what(),__func__);
+		LogPrinter::outputD("%s cannot parse ,error: %s in %s", e.c_str(),
+				xx.what(), __func__);
 		return false;
 	}
 }

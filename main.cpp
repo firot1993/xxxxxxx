@@ -222,6 +222,28 @@ void work(int connfd, memoryData* ptr) {
 					ptr->releaseFile(fid);
 					break;
 				}
+				case REGISTER: {
+					string source = newMessage.source;
+					vector<string> t = spliceS(source, '/');
+					//assumpt first is username ,second is password, and third is password confirm
+					if (t.size() < 3 || invaildpassword(t[1])
+							|| invaildusername(t[0]) || t[1] != t[2]) {
+						sendbuf = true;
+						sprintf(buf, "invalid register order;");
+						break;
+					} else {
+						json new_user;
+						new_user["username"] = t[0];
+						new_user["password"] = t[1];
+						json tmp;
+						bool ret = safe_parse(ptr->userList.get(), tmp);
+						tmp.push_back(new_user);
+						ptr->userList.rewrite(tmp);
+						sendbuf = true;
+						sprintf(buf, "create user succeed! ");
+					}
+					break;
+				}
 				default:
 					break;
 				}
@@ -291,7 +313,7 @@ int main(int argc, char **argv) {
 		ret = safe_parse(pt->setting.get(), tmp);
 		if (ret) {
 			int tt = tmp["maxconnection"];
-			LogPrinter::outputD("maxconnection: %d",tt);
+			LogPrinter::outputD("maxconnection: %d", tt);
 			connection = new connection_data[tt];
 		}
 	} catch (FileException e) {

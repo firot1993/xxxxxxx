@@ -17,4 +17,5 @@
 #define GET_FILE 3
 #define SEND_FILE 4
 
+#define REGISTER 5
 #endif /* SERVER_MESSAGE_MESSAGETYPE_H_ */
