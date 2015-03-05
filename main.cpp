@@ -10,10 +10,12 @@
 #include "user/user.h"
 #include <string>
 
-map<int, int> bindProandConn;
-
+connection_data *connection;
+int cplink[65567];
+int con_count = 0;
 const char *memname = "sharedmemroy";
 const size_t size = sizeof(memoryData);
+int sig_pipe[2];
 
 void sig_child(int signo) {
 	pid_t pid;
@@ -21,6 +23,13 @@ void sig_child(int signo) {
 	while ((pid = waitpid(-1, &stat, WNOHANG)) > 0)
 		;
 	return;
+}
+
+void sig_handler(int sig) {
+	int save_errno = errno;
+	int msg = sig;
+	send(sig_pipe[1], (char*) &msg, 1, 0);
+	errno = save_errno;
 }
 
 void terminateConnection(client_data* user_data) {
@@ -248,9 +257,14 @@ int main(int argc, char **argv) {
 //	char *xxxx ="1234";
 //	LogPrinter::output("%d %c %s",xx,xxx,xxxx);
 
-	bool fg = fGetCfgFileName(path);
+	int ret = socketpair(PF_UNIX, SOCK_STREAM, 0, sig_pipe);
+	bool running = true;
+//	bool fg = fGetCfgFileName(path);
 	LogPrinter::output(path);
-	addsig(SIGCHLD, sig_child);
+	addsig(SIGCHLD, sig_handler);
+	addsig(SIGTERM, sig_handler);
+	addsig(SIGINT, sig_handler);
+	addsig(SIGPIPE, SIG_IGN);
 
 	// using default
 	Server newServer;
@@ -272,12 +286,19 @@ int main(int argc, char **argv) {
 	new (ptr) memoryData;
 	memoryData *pt = static_cast<memoryData*>(ptr);
 	try {
-		pt->setting.loadFile("./setting.json",true,true);
+		pt->setting.loadFile("./setting.json", true, true);
+		json tmp;
+		ret = safe_parse(pt->setting.get(), tmp);
+		if (ret) {
+			int tt = tmp["maxconnection"];
+			connection = new connection_data[tt];
+		}
 	} catch (FileException e) {
 		LogPrinter::outputD(e.s);
+		connection = new connection_data[100];
 	}
 	try {
-		pt->userList.loadFile("./Database/userList.json",false,true);
+		pt->userList.loadFile("./Database/userList.json", false, true);
 	} catch (FileException e) {
 		LogPrinter::outputD(e.s);
 	}
@@ -285,10 +306,13 @@ int main(int argc, char **argv) {
 	epoll_event events[MAX_NUM_EPOLL_NUM];
 	assert(epollfd != -1);
 	addfd(epollfd, newServer.sockfd, EPOLLIN | EPOLLET);
+	setnonblocking(sig_pipe[1]);
+	addfd(epollfd, sig_pipe[0], EPOLLIN | EPOLLET);
+
 	LogPrinter::output("Server start succeed!Waiting for Connection");
-	while (1) {
+	while (running) {
 		int ret = epoll_wait(epollfd, events, MAX_NUM_EPOLL_NUM, -1);
-		if (ret < 0) {
+		if (ret < 0 && errno != EINTR) {
 			LogPrinter::output("epoll failure");
 			break;
 		}
@@ -304,20 +328,76 @@ int main(int argc, char **argv) {
 					LogPrinter::output(
 							"cannot create new process to handle new connection");
 				} else if (pid != 0) {
-					bindProandConn[connfd] = pid;
+					connection[con_count].address = client_address;
+					connection[con_count].pid = pid;
+					connection[con_count].connfd = connfd;
+					cplink[pid] = con_count;
+					con_count++;
 					close(connfd);
 					// debug the child process.
-					return 0;
 				} else {
 					work(connfd, pt);
 					close(connfd);
 					return 0;
 				}
+			} else if ((sockfd == sig_pipe[0])
+					&& (events[i].events & EPOLLIN)) {
+				LogPrinter::outputD("signal coming");
+				int sig;
+				char signal[1024];
+				ret = recv(sig_pipe[0], signal, sizeof(signal), 0);
+
+				if (ret == -1) {
+					continue;
+				} else if (ret == 0) {
+					continue;
+				} else {
+					for (int i = 0; i < ret; i++) {
+						switch (signal[i]) {
+						case SIGCHLD: {
+							pid_t pid;
+							int stat;
+							while ((pid = waitpid(-1, &stat, WNOHANG)) > 0) {
+								int conid = cplink[pid];
+								cplink[pid] = -1;
+								connection[conid] = connection[con_count];
+								cplink[conid] = connection[conid].pid;
+								con_count--;
+							}
+							break;
+						}
+						case SIGINT:
+						case SIGTERM:
+							LogPrinter::output("Begin to clear connection");
+							if (con_count == 0) {
+								running = false;
+								break;
+							}
+							for (int i = 0; i < con_count; i++) {
+								int pid = connection[i].pid;
+								kill(pid, SIGTERM);
+							}
+							running = false;
+							break;
+						default:
+							break;
+						}
+					}
+				}
 			}
 		}
 
 	}
+	LogPrinter::outputD("normal exists");
 	newServer.stop();
+	for (int i = 0; i < MAX_FILE_OPENED; i++) {
+		pt->opened[i].release();
+	}
+	pt->setting.release();
+	pt->userList.release();
+	pt->release();
+	munmap(ptr, size);
+	shm_unlink(memname);
 	return 0;
 }
 

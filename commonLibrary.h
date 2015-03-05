@@ -57,6 +57,7 @@ union semun {
 void error_and_die(const char *msg) {
 	perror(msg);
 	exit(EXIT_FAILURE);
+	shm_unlink("sharedmemroy");
 }
 
 void pv(int sem_id, int op) {

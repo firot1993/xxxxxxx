@@ -29,7 +29,11 @@ private:
 public:
 	string name;
 	File() {
+		LogPrinter::output("-----------%s---------",__func__);
 		sem_id = semget(IPC_PRIVATE, 1, 0666);
+		if (sem_id == -1)
+			LogPrinter::outputD("errno %d", errno);
+		LogPrinter::outputD("asking for semphor , and sem_id :%d", sem_id);
 		union semun sem_un;
 		sem_un.val = 0;
 		semctl(sem_id, 0, SETVAL, sem_un);
@@ -110,18 +114,27 @@ public:
 	}
 
 	void clear() throw (FileException) {
-		int val = semctl(sem_id, 0, GETVAL);
+		int val = semctl(sem_id, 0, GETVAL, 0);
+		if (val == -1)
+			printf("%d", errno);
+		LogPrinter::outputD("%d", sem_id);
 		if (val != 0) {
+			LogPrinter::outputD("the val is %d", val);
 			throw FileException("Can not close it");
 		}
 		pv(sem_id, 0);
 		close(filefd);
 		filefd = -1;
 	}
-
+	void release() {
+		semun sem_un;
+		semctl(sem_id, 0, IPC_RMID, sem_un);
+		LogPrinter::outputD("release semid %d",sem_id);
+	}
 	~File() {
 		if (filefd != -1)
 			close(filefd);
+
 	}
 
 };
