@@ -29,7 +29,7 @@
 #include <stdexcept>
 #include "setting.h"
 #include "timeheap.h"
-#include <sqlite.h>
+#include <sqlite3.h>
 
 #include <algorithm>
 #include <vector>
@@ -78,10 +78,10 @@ void error_and_die(const char *msg) {
 	shm_unlink("sharedmemroy");
 }
 
-void pv(int sem_id, int op) {
+void pv(int sem_id, int op, int wt = 0) {
 	struct sembuf sem_b;
 	sem_b.sem_op = op;
-	sem_b.sem_num = 0;
+	sem_b.sem_num = wt;
 	sem_b.sem_flg = SEM_UNDO;
 	semop(sem_id, &sem_b, 1);
 }
@@ -228,6 +228,7 @@ bool fGetCfgFileName(std::string& paraStr_CfgFileName) {
 	return true;
 }
 
+//safe json parse
 bool safe_parse(string e, json&t) {
 	try {
 		t = json::parse(e);
@@ -239,4 +240,6 @@ bool safe_parse(string e, json&t) {
 		return false;
 	}
 }
+
+//sqlite3_operator
 

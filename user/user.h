@@ -31,8 +31,18 @@ public:
 	bool isadmin() {
 		return admin;
 	}
-	bool check(string password) {
-		setlogin(1);
+	bool check(string password,sqlite3* db = NULL) {
+		if (!db){
+			string order = "select * from users where users.username="+'"'+username+'"';
+			char **result;
+			char *error;
+			int row = 0;
+			int col = 0;
+			sqlite3_get_table(db,order.c_str(),&result,&row,&col,&error);
+			for (int i = 0; i < row; i++)
+				for (int j = 0; j< col;j++)
+					cout<<result[i*col+j];
+		}
 
 		return true; // unfinished;
 	}

@@ -278,7 +278,7 @@ int main(int argc, char **argv) {
 //	char xxx='k';
 //	char *xxxx ="1234";
 //	LogPrinter::output("%d %c %s",xx,xxx,xxxx);
-
+	int maxconnection = 0;
 	int ret = socketpair(PF_UNIX, SOCK_STREAM, 0, sig_pipe);
 	bool running = true;
 //	bool fg = fGetCfgFileName(path);
@@ -287,6 +287,14 @@ int main(int argc, char **argv) {
 	addsig(SIGTERM, sig_handler);
 	addsig(SIGINT, sig_handler);
 	addsig(SIGPIPE, SIG_IGN);
+
+	sqlite3 * db;
+	ret = sqlite3_open("./Database/userList.db", &db);
+	if (ret) {
+		error_and_die("can't open database: userList");
+		sqlite3_close(db);
+		return (1);
+	}
 
 	// using default
 	Server newServer(1000);
@@ -312,9 +320,9 @@ int main(int argc, char **argv) {
 		json tmp;
 		ret = safe_parse(pt->setting.get(), tmp);
 		if (ret) {
-			int tt = tmp["maxconnection"];
-			LogPrinter::outputD("maxconnection: %d", tt);
-			connection = new connection_data[tt];
+			maxconnection = tmp["maxconnection"];
+			LogPrinter::outputD("maxconnection: %d", maxconnection);
+			connection = new connection_data[maxconnection];
 		}
 	} catch (FileException e) {
 		LogPrinter::outputD(e.s);
@@ -325,8 +333,8 @@ int main(int argc, char **argv) {
 	} catch (FileException e) {
 		LogPrinter::outputD(e.s);
 	}
-	int epollfd = epoll_create(MAX_NUM_EPOLL_EVENTS);
-	epoll_event events[MAX_NUM_EPOLL_NUM];
+	int epollfd = epoll_create(MAX_NUM_EPOLL_EVENTS + maxconnection);
+	epoll_event events[MAX_NUM_EPOLL_NUM + maxconnection];
 	assert(epollfd != -1);
 	addfd(epollfd, newServer.sockfd, EPOLLIN | EPOLLET);
 	setnonblocking(sig_pipe[1]);
@@ -354,6 +362,10 @@ int main(int argc, char **argv) {
 					connection[con_count].address = client_address;
 					connection[con_count].pid = pid;
 					connection[con_count].connfd = connfd;
+					ret = socketpair(PF_UNIX, SOCK_STREAM, 0,
+							connection[con_count].pipefd);
+					addfd(epollfd, connection[con_count].pipefd[0],
+							EPOLLIN | EPOLLET);
 					cplink[pid] = con_count;
 					con_count++;
 					close(connfd);
