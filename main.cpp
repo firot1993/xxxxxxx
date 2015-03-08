@@ -99,10 +99,17 @@ void work(int connfd, memoryData* ptr) {
 					break;
 				case LOG_IN_PASSWORD:
 					LogPrinter::outputD("------------LOG_IN_P--------------");
+					if (!con){
+						sprintf(buf,"please enter your username please~");
+						sendbuf = true;
+						break;
+					}
 					password = newMessage.source;
-					flag = con->check(password);
+					flag = con->check(password, ptr);
 					if (!flag) {
 						sprintf(buf, "password or username wrong  ");
+						delete con;
+						con  = NULL;
 						sendbuf = true;
 					} else {
 						sprintf(buf, "welcome back , %s ", user.c_str());
@@ -273,7 +280,7 @@ void work(int connfd, memoryData* ptr) {
 
 int main(int argc, char **argv) {
 	// parse parameter
-	string path;
+//	string path;
 //	int xx=3;
 //	char xxx='k';
 //	char *xxxx ="1234";
@@ -282,35 +289,46 @@ int main(int argc, char **argv) {
 	int ret = socketpair(PF_UNIX, SOCK_STREAM, 0, sig_pipe);
 	bool running = true;
 //	bool fg = fGetCfgFileName(path);
-	LogPrinter::output(path);
-	addsig(SIGCHLD, sig_handler);
-	addsig(SIGTERM, sig_handler);
-	addsig(SIGINT, sig_handler);
-	addsig(SIGPIPE, SIG_IGN);
+//	LogPrinter::output(path);
 
 	sqlite3 * db;
 	ret = sqlite3_open("./Database/userList.db", &db);
 	if (ret) {
-		error_and_die("can't open database: userList");
+//		error_and_die("can't open database: userList");
+		LogPrinter::outputD("can't open database : userList");
 		sqlite3_close(db);
+//		create the database please;
 		return (1);
 	}
 
+//  test select max(id)
+//	char b[100];
+//	int tid = 0;
+//	char * errmsg = 0;
+//	snprintf(b, 100, "select max(id) from _time;");
+//	char ** tb;
+//	int row = 0;
+//	int col = 0;
+//	ret = sqlite3_get_table(db, "select max(id) from _time;", &tb, &row, &col, &errmsg);
+//	tid = stoi(tb[1]);
+//	LogPrinter::outputD("%d",tid);
+//	tid = tb[col];
 	// using default
-	Server newServer(1000);
+	Server newServer(100);
 	if (argc > 1) {
 
 	} else {
 
 	}
-	newServer.start();
 	int memoryfd = shm_open(memname, O_CREAT | O_TRUNC | O_RDWR, 0666);
 	if (memoryfd == -1) {
-		error_and_die("Can not open the shared memory");
+		LogPrinter::outputD("Can not open the shared memory");
+		return 1;
 	}
 	int r = ftruncate(memoryfd, size);
 	if (r == -1) {
-		error_and_die("Can not change the size");
+		LogPrinter::outputD("Can not change the size");
+		return 1;
 	}
 	void * ptr = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, memoryfd, 0);
 	new (ptr) memoryData;
@@ -333,12 +351,41 @@ int main(int argc, char **argv) {
 	} catch (FileException e) {
 		LogPrinter::outputD(e.s);
 	}
-	int epollfd = epoll_create(MAX_NUM_EPOLL_EVENTS + maxconnection);
-	epoll_event events[MAX_NUM_EPOLL_NUM + maxconnection];
+//  init the userList;
+	char ** tb;
+	char *errmsg;
+	int row, col;
+	ret = sqlite3_get_table(db, "select username,password from users;", &tb,
+			&row, &col, &errmsg);
+	if (ret != SQLITE_OK) {
+		LogPrinter::outputD("%s", errmsg);
+		sqlite3_close(db);
+		sqlite3_free(errmsg);
+		return 1;
+	}
+	for (int i = 1; i <= row; i++){
+			pt->database[pt->userNum].username = tb[i * col];
+			pt->database[pt->userNum].password = tb[i * col + 1];
+			pt->userNum++;
+		}
+	sqlite3_free(errmsg);
+	sqlite3_free_table(tb);
+	for (int i = 0; i < pt->userNum; i++)
+		cout << pt->database[i].username << " " << pt->database[i].password
+				<< endl;
+
+//  start the server ;
+	newServer.start();
+	int epollfd = epoll_create(MAX_NUM_EPOLL_EVENTS + 1);
+	epoll_event events[MAX_NUM_EPOLL_NUM + 1];
 	assert(epollfd != -1);
 	addfd(epollfd, newServer.sockfd, EPOLLIN | EPOLLET);
 	setnonblocking(sig_pipe[1]);
 	addfd(epollfd, sig_pipe[0], EPOLLIN | EPOLLET);
+	addsig(SIGCHLD, sig_handler);
+	addsig(SIGTERM, sig_handler);
+	addsig(SIGINT, sig_handler);
+	addsig(SIGPIPE, SIG_IGN);
 
 	LogPrinter::output("Server start succeed!Waiting for Connection");
 	while (running) {
@@ -347,6 +394,7 @@ int main(int argc, char **argv) {
 			LogPrinter::output("epoll failure");
 			break;
 		}
+
 		for (int i = 0; i < ret; i++) {
 			int sockfd = events[i].data.fd;
 			if (sockfd == newServer.sockfd) {
@@ -362,10 +410,10 @@ int main(int argc, char **argv) {
 					connection[con_count].address = client_address;
 					connection[con_count].pid = pid;
 					connection[con_count].connfd = connfd;
-					ret = socketpair(PF_UNIX, SOCK_STREAM, 0,
-							connection[con_count].pipefd);
-					addfd(epollfd, connection[con_count].pipefd[0],
-							EPOLLIN | EPOLLET);
+//					ret = socketpair(PF_UNIX, SOCK_STREAM, 0,
+//							connection[con_count].pipefd);
+//					addfd(epollfd, connection[con_count].pipefd[0],
+//							EPOLLIN | EPOLLET);
 					cplink[pid] = con_count;
 					con_count++;
 					close(connfd);

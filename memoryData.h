@@ -82,6 +82,7 @@ public:
 	void release() {
 		semun sem_un;
 		semctl(sem_id, 0, IPC_RMID, sem_un);
+		semctl(sem_id, 1, IPC_RMID, sem_un);
 		LogPrinter::outputD("release semid %d", sem_id);
 	}
 	bool registerNewUser(string username, string password) {
@@ -93,9 +94,12 @@ public:
 			if (!fRegisterUser[i]) {
 				registerUser[i].username = username;
 				registerUser[i].password = password;
+				database[userNum] = registerUser[i];
 				tmpNum++;
+				userNum++;
 				break;
 			}
+
 		if (tmpNum == 100) {
 			int key = 1;
 			send(connectfd[1], (char*) &key, 1, 0);
@@ -120,7 +124,7 @@ public:
 				int row = 0;
 				int col = 0;
 				sqlite3_get_table(db,b,&tb,&row,&col,&errmsg);
-				tid = tb[col];
+//				tid = tb[col];
 				snprintf(b, 100,
 						"insert into users (username,password,registertime,logtime_id) "
 						"values (\"%s\",\"%s\",date(),%d)",

@@ -241,5 +241,22 @@ bool safe_parse(string e, json&t) {
 	}
 }
 
+// please assumpt s is really integer
+int stoi(string s){
+	stringstream convert;
+	int m = 0;
+	convert<<s;
+	convert>>m;
+	return m;
+}
+
+int stoi(char* s){
+	stringstream convert;
+	int m = 0;
+	convert<<s;
+	convert>>m;
+	return m;
+}
+
 //sqlite3_operator
 
