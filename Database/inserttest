@@ -1,0 +1,6 @@
+insert into _time (_date,_time) values (date(),time())
+insert into users (username,password,logtime_id) values ("ruine","helloworld",1);
+insert into _time (_date,_time) values (date(),time())
+insert into users (username,password,logtime_id) values ("usp","helloworld",2);
+insert into _time (_date,_time) values (date(),time())
+insert into users (username,password,logtime_id) values ("ruine","hello",3);
