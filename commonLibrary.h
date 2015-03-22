@@ -52,7 +52,7 @@ vector<string> spliceS(string s, char k) {
 			tmp = "";
 		}
 	}
-
+	if (tmp!="") aa.push_back(tmp);
 	return aa;
 }
 

@@ -99,8 +99,8 @@ void work(int connfd, memoryData* ptr) {
 					break;
 				case LOG_IN_PASSWORD:
 					LogPrinter::outputD("------------LOG_IN_P--------------");
-					if (!con){
-						sprintf(buf,"please enter your username please~");
+					if (!con) {
+						sprintf(buf, "please enter your username please~");
 						sendbuf = true;
 						break;
 					}
@@ -109,7 +109,7 @@ void work(int connfd, memoryData* ptr) {
 					if (!flag) {
 						sprintf(buf, "password or username wrong  ");
 						delete con;
-						con  = NULL;
+						con = NULL;
 						sendbuf = true;
 					} else {
 						sprintf(buf, "welcome back , %s ", user.c_str());
@@ -232,22 +232,33 @@ void work(int connfd, memoryData* ptr) {
 				case REGISTER: {
 					string source = newMessage.source;
 					vector<string> t = spliceS(source, '/');
+					for (auto x : t)
+						cout << x<< endl;
 					//assumpt first is username ,second is password, and third is password confirm
 					if (t.size() < 3 || invaildpassword(t[1])
 							|| invaildusername(t[0]) || t[1] != t[2]) {
 						sendbuf = true;
+
 						sprintf(buf, "invalid register order;");
 						break;
 					} else {
-						json new_user;
-						new_user["username"] = t[0];
-						new_user["password"] = t[1];
-						json tmp;
-						bool ret = safe_parse(ptr->userList.get(), tmp);
-						tmp.push_back(new_user);
-						ptr->userList.rewrite(tmp);
-						sendbuf = true;
-						sprintf(buf, "create user succeed! ");
+//						json new_user;
+//						new_user["username"] = t[0];
+//						new_user["password"] = t[1];
+//						json tmp;
+//						bool ret = safe_parse(ptr->userList.get(), tmp);
+//						tmp.push_back(new_user);
+//						ptr->userList.rewrite(tmp);
+//						sendbuf = true;
+//						sprintf(buf, "create user succeed! ");
+						int ret = ptr->registerNewUser(t[0],t[1]);
+						if (ret){
+							sprintf(buf,"congration!~have registered");
+							sendbuf = true;
+						}else{
+							sprintf(buf,"cannot register");
+							sendbuf = true;
+						}
 					}
 					break;
 				}
@@ -351,6 +362,7 @@ int main(int argc, char **argv) {
 	} catch (FileException e) {
 		LogPrinter::outputD(e.s);
 	}
+	ret = socketpair(PF_UNIX, SOCK_STREAM, 0, pt->connectfd);
 //  init the userList;
 	char ** tb;
 	char *errmsg;
@@ -363,11 +375,13 @@ int main(int argc, char **argv) {
 		sqlite3_free(errmsg);
 		return 1;
 	}
-	for (int i = 1; i <= row; i++){
-			pt->database[pt->userNum].username = tb[i * col];
-			pt->database[pt->userNum].password = tb[i * col + 1];
-			pt->userNum++;
-		}
+	for (int i = 1; i <= row; i++) {
+		sprintf(pt->database[pt->userNum].username,"%s",tb[i * col]);
+		sprintf(pt->database[pt->userNum].password ,"%s",tb[i * col + 1]);
+//		pt->database[pt->userNum].username = tb[i * col];
+//		pt->database[pt->userNum].password = tb[i * col + 1];
+		pt->userNum++;
+	}
 	sqlite3_free(errmsg);
 	sqlite3_free_table(tb);
 	for (int i = 0; i < pt->userNum; i++)
@@ -379,9 +393,15 @@ int main(int argc, char **argv) {
 	int epollfd = epoll_create(MAX_NUM_EPOLL_EVENTS + 1);
 	epoll_event events[MAX_NUM_EPOLL_NUM + 1];
 	assert(epollfd != -1);
+
+//	add epollfd .
 	addfd(epollfd, newServer.sockfd, EPOLLIN | EPOLLET);
 	setnonblocking(sig_pipe[1]);
 	addfd(epollfd, sig_pipe[0], EPOLLIN | EPOLLET);
+	setnonblocking(pt->connectfd[1]);
+	addfd(epollfd, pt->connectfd[0],EPOLLIN | EPOLLET);
+
+//	add sig action
 	addsig(SIGCHLD, sig_handler);
 	addsig(SIGTERM, sig_handler);
 	addsig(SIGINT, sig_handler);
@@ -426,7 +446,6 @@ int main(int argc, char **argv) {
 			} else if ((sockfd == sig_pipe[0])
 					&& (events[i].events & EPOLLIN)) {
 				LogPrinter::outputD("signal coming");
-				int sig;
 				char signal[1024];
 				ret = recv(sig_pipe[0], signal, sizeof(signal), 0);
 
@@ -468,6 +487,21 @@ int main(int argc, char **argv) {
 						}
 					}
 				}
+			} else if (sockfd == pt->connectfd[0]) {
+				LogPrinter::outputD("need to write database");
+				char signal[1024];
+				ret = recv(pt->connectfd[0], signal, sizeof(signal), 0);
+				for (int i = 0; i < ret; i++){
+					switch(signal[i]){
+					case 1:
+						pt->writeback(db);
+						break;
+					default:
+						break;
+					}
+
+				}
+
 			}
 		}
 
@@ -477,6 +511,7 @@ int main(int argc, char **argv) {
 	for (int i = 0; i < MAX_FILE_OPENED; i++) {
 		pt->opened[i].release();
 	}
+	pt->writeback(db);
 	pt->setting.release();
 	pt->userList.release();
 	pt->release();

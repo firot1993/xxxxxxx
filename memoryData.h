@@ -5,8 +5,8 @@
 #include "commonLibrary.h"
 
 struct userData {
-	string username;
-	string password;
+	char username[20];
+	char password[20];
 };
 
 struct memoryData {
@@ -92,15 +92,18 @@ public:
 				return false;
 		for (int i = 0; i < 100; i++)
 			if (!fRegisterUser[i]) {
-				registerUser[i].username = username;
-				registerUser[i].password = password;
+				snprintf(registerUser[i].username,20,"%s",username.c_str());
+				snprintf(registerUser[i].password,20,"%s",password.c_str());
+//				registerUser[i].username = username;
+//				registerUser[i].password = password;
+				fRegisterUser[i] = true;
 				database[userNum] = registerUser[i];
 				tmpNum++;
 				userNum++;
 				break;
 			}
 
-		if (tmpNum == 100) {
+		if (tmpNum >= 100) {
 			int key = 1;
 			send(connectfd[1], (char*) &key, 1, 0);
 		}
@@ -110,28 +113,39 @@ public:
 		if (db == NULL) {
 			return false;
 		}
+		LogPrinter::outputD("ready to write back the database");
 		for (int i = 0; i < 100; i++) {
 			if (fRegisterUser[i]) {
+				LogPrinter::output(registerUser[i].username);
+				LogPrinter::output(registerUser[i].password);
+
 				//write back to db;
+				LogPrinter::outputD("write username:%s;  password %s",
+						registerUser[i].username,
+						registerUser[i].password);
 				char b[100];
 				int tid = 0;
 				snprintf(b, 100,
 						"insert into _time (_date,_time) values (date(),time())");
+				LogPrinter::outputD("the order is %s",b);
 				char * errmsg = 0;
 				sqlite3_exec(db, b, NULL, 0, &errmsg);
 				snprintf(b, 100, "select max(id) from _time");
 				char ** tb;
 				int row = 0;
 				int col = 0;
-				sqlite3_get_table(db,b,&tb,&row,&col,&errmsg);
-//				tid = tb[col];
+				sqlite3_get_table(db, b, &tb, &row, &col, &errmsg);
+				LogPrinter::outputD("the order is %s",b);
+				tid = stoi(tb[1]);
 				snprintf(b, 100,
 						"insert into users (username,password,registertime,logtime_id) "
-						"values (\"%s\",\"%s\",date(),%d)",
-						registerUser[i].username.c_str(), registerUser[i].password.c_str(),
-						tid);
-				sqlite3_exec(db,b,NULL,0,&errmsg);
+								"values (\"%s\",\"%s\",date(),%d)",
+						registerUser[i].username,
+						registerUser[i].password, tid);
+				LogPrinter::outputD("the order is %s",b);
+				sqlite3_exec(db, b, NULL, 0, &errmsg);
 				fRegisterUser[i] = false;
+				tmpNum--;
 				sqlite3_free(errmsg);
 				sqlite3_free_table(tb);
 				pv(sem_id, 1, 1);
